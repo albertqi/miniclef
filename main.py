@@ -6,6 +6,8 @@ from miniclef.vars import note_pq, patterns
 
 
 def main() -> None:
+    """Main loop for the MiniClef program."""
+
     beat_start_time = time.time()
     while True:
         # Get the current time.
