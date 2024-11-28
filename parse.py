@@ -1,4 +1,4 @@
-from miniclef.pattern import Beat, Cycle, Note, Parallel, Sequence
+from miniclef.pattern import Beat, Cycle, Note, Parallel, Random, Sequence
 
 
 def is_valid(pat_str: str) -> bool:
@@ -8,11 +8,13 @@ def is_valid(pat_str: str) -> bool:
         "[": 0,
         "(": 0,
         "<": 0,
+        "{": 0,
     }
     right_brackets = {
         "]": "[",
         ")": "(",
         ">": "<",
+        "}": "{",
     }
 
     # Check if the brackets are balanced.
@@ -39,6 +41,7 @@ def parse(pat_str: str) -> list[Beat]:
         "[": ("]", Sequence),
         "(": (")", Parallel),
         "<": (">", Cycle),
+        "{": ("}", Random),
     }
 
     res = []

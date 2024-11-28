@@ -1,4 +1,5 @@
 import heapq
+import random
 import re
 from miniclef.clock import get_bpm
 from miniclef.server import client
@@ -118,51 +119,10 @@ class Note(Beat):
         freq = pitch_to_freq(pitch)
 
         # Play the note.
-        match note_name:
-            case NoteName.ANGEL:
-                client.send_message(
-                    "/s_new", ["angel", -1, 0, group_id, "freq", freq, "amp", 1]
-                )
-            case NoteName.ARPY:
-                client.send_message(
-                    "/s_new", ["arpy", -1, 0, group_id, "freq", freq, "amp", 1]
-                )
-            case NoteName.BASS:
-                client.send_message(
-                    "/s_new", ["bass", -1, 0, group_id, "freq", freq, "amp", 1]
-                )
-            case NoteName.BELL:
-                client.send_message(
-                    "/s_new", ["bell", -1, 0, group_id, "freq", freq, "amp", 1]
-                )
-            case NoteName.PADS:
-                client.send_message(
-                    "/s_new", ["pads", -1, 0, group_id, "freq", freq, "amp", 1]
-                )
-            case NoteName.PLUCK:
-                client.send_message(
-                    "/s_new", ["pluck", -1, 0, group_id, "freq", freq, "amp", 1]
-                )
-            case NoteName.RIPPLE:
-                client.send_message(
-                    "/s_new", ["ripple", -1, 0, group_id, "freq", freq, "amp", 1]
-                )
-            case NoteName.SAW:
-                client.send_message(
-                    "/s_new", ["saw", -1, 0, group_id, "freq", freq, "amp", 1]
-                )
-            case NoteName.SINEPAD:
-                client.send_message(
-                    "/s_new", ["sinepad", -1, 0, group_id, "freq", freq, "amp", 1]
-                )
-            case NoteName.SITAR:
-                client.send_message(
-                    "/s_new", ["sitar", -1, 0, group_id, "freq", freq, "amp", 1]
-                )
-            case NoteName.SWELL:
-                client.send_message(
-                    "/s_new", ["swell", -1, 0, group_id, "freq", freq, "amp", 1]
-                )
+        # TODO: Check that the note name exists in NoteName, or remove NoteName.
+        client.send_message(
+            "/s_new", [note_name, -1, 0, group_id, "freq", freq, "amp", 1]
+        )
 
     def __lt__(self, _other) -> bool:
         return False
@@ -209,6 +169,18 @@ class Cycle(Beat):
         return f"Cycle({self.beats})"
 
 
+class Random(Beat):
+    def __init__(self, beats: list[Beat]) -> None:
+        self.beats = beats
+
+    def process(self, duration: float, start_time: float, fx: list) -> None:
+        i = random.randint(0, len(self.beats) - 1)
+        self.beats[i].process(duration, start_time, fx)
+
+    def __repr__(self) -> str:
+        return f"Random({self.beats})"
+
+
 class Pattern:
     def __init__(self, pat_name: str, beats: list[Beat], countdown: float) -> None:
         # Initialize the pattern.
@@ -242,47 +214,62 @@ class Pattern:
         self.fx.append(("slide_from", slide, delay))
         return self
 
-    def pitch_bend(self, bend, delay) -> Self:
+    def pitch_bend(self, bend: float = 1, delay: float = 0) -> Self:
+        self.fx.append(("pitch_bend", bend, delay))
         return self
 
-    def pitch_shift(self, shift) -> Self:
+    def pitch_shift(self, shift: int = 0) -> Self:
+        self.fx.append(("pitch_shift", shift))
         return self
 
-    def chop(self, num_parts) -> Self:
+    def chop(self, num_parts: int = 4) -> Self:
+        self.fx.append(("chop", num_parts))
         return self
 
-    def coarse(self, coarse) -> Self:
+    def coarse(self, num_parts: int = 4) -> Self:
+        self.fx.append(("coarse", num_parts))
         return self
 
-    def high_pass(self, hpf, hpr) -> Self:
+    def high_pass(self, hpf: float = 2000, hpr: float = 1) -> Self:
+        self.fx.append(("high_pass", hpf, hpr))
         return self
 
-    def low_pass(self, lpf, lpr) -> Self:
+    def low_pass(self, lpf: float = 400, lpr: float = 1) -> Self:
+        self.fx.append(("low_pass", lpf, lpr))
         return self
 
-    def bitcrush(self, bits=4, crush=8) -> Self:
+    def bitcrush(self, bits: int = 4, crush: int = 8) -> Self:
+        self.fx.append(("bitcrush", bits, crush))
         return self
 
-    def distortion(self, dist=1) -> Self:
+    def distortion(self, dist: float = 1) -> Self:
+        self.fx.append(("dist", dist))
         return self
 
-    def wave_shape(self, shape=1) -> Self:
+    def wave_shape(self, shape: float = 1) -> Self:
+        self.fx.append(("wave_shape", shape))
         return self
 
-    def overdrive(self, drive=1) -> Self:
+    def overdrive(self, drive: float = 1) -> Self:
+        self.fx.append(("overdrive", drive))
         return self
 
-    def reverb(self, room=0.5, mix=0.5) -> Self:
+    def reverb(self, room: float = 1, mix: float = 0.1) -> Self:
+        self.fx.append(("reverb", room, mix))
         return self
 
-    def pan_spin(self, spin=0.5) -> Self:
+    def pan_spin(self, num_times: int = 4) -> Self:
+        self.fx.append(("pan_spin", num_times))
         return self
 
-    def formant(self, formant=0.5) -> Self:
+    def formant(self, formant: int = 4) -> Self:
+        self.fx.append(("formant", formant))
         return self
 
-    def tremolo(self, trem=0.5) -> Self:
+    def tremolo(self, num_times: int = 2) -> Self:
+        self.fx.append(("tremolo", num_times))
         return self
 
-    def glissando(self, gliss=0.5) -> Self:
+    def glissando(self, gliss: int = 0) -> Self:
+        self.fx.append(("glissando", gliss))
         return self
