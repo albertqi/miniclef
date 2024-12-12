@@ -1,8 +1,26 @@
+import atexit
 import os
+import signal
 import subprocess
 import threading
 import time
 from pythonosc import udp_client
+
+
+def on_exit() -> None:
+    """Cleanup function to terminate the 'scsynth' server."""
+    scsynth.terminate()
+    scsynth.wait()
+
+
+def signal_handler(signum: int, frame: object) -> None:
+    """Handler for termination signals."""
+    exit(0)
+
+
+atexit.register(on_exit)
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
 
 
 # Open prebuilt 'scsynth' server.

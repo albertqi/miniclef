@@ -169,7 +169,7 @@ class Note(Beat):
             "/s_new", [note_name, -1, 0, group_id, "freq", freq, "amp", 1]
         )
 
-    def __lt__(self, _other) -> bool:
+    def __lt__(self, _other: Self) -> bool:
         return False
 
     def __repr__(self) -> str:
@@ -271,7 +271,6 @@ class Pattern:
         # Register the pattern.
         patterns[pat_name] = self
 
-    # TODO: Make private/extract into outside function?
     def step(self, beat_start_time: float) -> None:
         self.beats[self.i].process(60 / get_bpm(), beat_start_time, self.fx)
         if self.i == len(self.beats) - 1:
