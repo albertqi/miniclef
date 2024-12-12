@@ -18,10 +18,10 @@ def signal_handler(signum: int, frame: object) -> None:
     exit(0)
 
 
+# Register the cleanup function and signal handlers.
 atexit.register(on_exit)
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
-
 
 # Open prebuilt 'scsynth' server.
 scsynth = subprocess.Popen(
