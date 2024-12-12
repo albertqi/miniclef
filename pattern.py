@@ -1,6 +1,7 @@
 import heapq
 import random
 import re
+from enum import Enum
 from miniclef.clock import get_bpm
 from miniclef.server import client
 from miniclef.vars import group, note_pq, patterns, silence
@@ -94,7 +95,7 @@ def pitch_to_lilypond(pitch: str) -> str:
     return note
 
 
-class NoteName:
+class NoteName(Enum):
     ANGEL = "angel"
     ARPY = "arpy"
     BASS = "bass"
@@ -108,7 +109,7 @@ class NoteName:
     SWELL = "swell"
 
 
-class FXName:
+class FXName(Enum):
     VIBRATO = "vibrato"
 
 
@@ -137,13 +138,19 @@ class Note(Beat):
         heapq.heappush(note_pq, (start_time, self))
 
     def gen_lilypond(self, note_val: int) -> str:
+        if self.name not in set([item.value for item in NoteName]):
+            return f"r{note_val}"
         return f"{pitch_to_lilypond(self.pitch)}{note_val}"
 
     def play(self) -> None:
         note_name, pitch, fx = self.name, self.pitch, self.fx
-        group_id = next(group)
+
+        # Ensure that the note name is valid.
+        if note_name not in set([item.value for item in NoteName]):
+            return
 
         # Create new group.
+        group_id = next(group)
         client.send_message("/g_new", [group_id, 0, 0])
 
         # Apply effects in reverse order.
@@ -158,7 +165,6 @@ class Note(Beat):
         freq = pitch_to_freq(pitch)
 
         # Play the note.
-        # TODO: Check that the note name exists in NoteName, or remove NoteName.
         client.send_message(
             "/s_new", [note_name, -1, 0, group_id, "freq", freq, "amp", 1]
         )
