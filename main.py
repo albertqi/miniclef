@@ -2,6 +2,7 @@ import heapq
 import threading
 import time
 from miniclef.clock import get_bpm
+from miniclef.sheet_music import gen_sheet_music
 from miniclef.vars import note_pq, patterns
 
 
@@ -28,7 +29,8 @@ def main() -> None:
         for pattern in list(patterns.values()):
             pattern.step(beat_start_time)
 
-        # TODO: Generate sheet music.
+        # Generate sheet music.
+        threading.Thread(target=gen_sheet_music, daemon=True).start()
 
 
 threading.Thread(target=main, daemon=True).start()

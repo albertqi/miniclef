@@ -15,6 +15,7 @@ def pitch_to_freq(pitch: str) -> float:
 
     # Define the semitone distance from A for each note.
     note_to_semitone_dist = {
+        "Cb": -10,
         "C": -9,
         "Cs": -8,
         "Db": -8,
@@ -22,6 +23,8 @@ def pitch_to_freq(pitch: str) -> float:
         "Ds": -6,
         "Eb": -6,
         "E": -5,
+        "Es": -4,
+        "Fb": -5,
         "F": -4,
         "Fs": -3,
         "Gb": -3,
@@ -32,6 +35,7 @@ def pitch_to_freq(pitch: str) -> float:
         "As": 1,
         "Bb": 1,
         "B": 2,
+        "Bs": 3,
     }
 
     # Parse the pitch string.
@@ -51,14 +55,43 @@ def pitch_to_freq(pitch: str) -> float:
         note += "s"
 
     # Check if the note is valid.
-    if note not in note_to_semitone_dist:
-        return A4_FREQ
+    assert note in note_to_semitone_dist
 
     # Calculate the semitone distance from A4.
     semitone_dist = note_to_semitone_dist[note] + (int(octave) - 4) * 12
 
     # Return the frequency.
     return A4_FREQ * (2 ** (semitone_dist / 12))
+
+
+def pitch_to_lilypond(pitch: str) -> str:
+    """Convert a pitch string to a LilyPond note."""
+
+    # Parse the pitch string.
+    match = re.fullmatch(r"([A-Ga-g])([bfs#]?)(\d?)", pitch)
+    if not match:
+        return "a'"
+
+    # Extract components from the matched groups.
+    note = match.group(1).lower()  # Note letter (i.e., c, d, e, f, g, a, b).
+    accidental = match.group(2)  # Accidental (i.e., b, f, s, #).
+    octave = match.group(3) or "4"  # Octave number.
+
+    # Adjust note for sharps and flats.
+    if accidental in ("b", "f"):
+        note += "f"
+    elif accidental in ("s", "#"):
+        note += "s"
+
+    # Calculate the distance from the third octave.
+    dist_from_3 = int(octave) - 3
+    if dist_from_3 > 0:
+        return note + "'" * dist_from_3
+    elif dist_from_3 < 0:
+        return note + "," * -dist_from_3
+
+    # Return the LilyPond note.
+    return note
 
 
 class NoteName:
@@ -86,6 +119,9 @@ class Beat:
     def process(self, duration: float, start_time: float, fx: list) -> None:
         raise NotImplementedError
 
+    def gen_lilypond(self, note_val: int) -> str:
+        raise NotImplementedError
+
     def __repr__(self) -> str:
         raise NotImplementedError
 
@@ -99,6 +135,9 @@ class Note(Beat):
     def process(self, _duration: float, start_time: float, fx: list) -> None:
         self.fx = fx
         heapq.heappush(note_pq, (start_time, self))
+
+    def gen_lilypond(self, note_val: int) -> str:
+        return f"{pitch_to_lilypond(self.pitch)}{note_val}"
 
     def play(self) -> None:
         note_name, pitch, fx = self.name, self.pitch, self.fx
@@ -140,6 +179,23 @@ class Sequence(Beat):
         for i, beat in enumerate(self.beats):
             beat.process(new_dur, start_time + i * new_dur, fx)
 
+    def gen_lilypond(self, note_val: int) -> str:
+        def highest_power_of_2(n: int) -> int:
+            """Return the highest power of 2 that is less than or equal to n."""
+            p = 1
+            while p <= n:
+                p *= 2
+            return p // 2
+
+        hp_2 = highest_power_of_2(len(self.beats))
+        return (
+            "\\tuplet "
+            + f"{len(self.beats)}/{hp_2}"
+            + " { "
+            + " ".join([beat.gen_lilypond(note_val * hp_2) for beat in self.beats])
+            + " }"
+        )
+
     def __repr__(self) -> str:
         return f"Sequence({self.beats})"
 
@@ -151,6 +207,15 @@ class Parallel(Beat):
     def process(self, duration: float, start_time: float, fx: list) -> None:
         for beat in self.beats:
             beat.process(duration, start_time, fx)
+
+    def gen_lilypond(self, note_val: int) -> str:
+        return (
+            "\\new Voice << "
+            + " ".join(
+                ["{ " + beat.gen_lilypond(note_val) + " }" for beat in self.beats]
+            )
+            + " >>"
+        )
 
     def __repr__(self) -> str:
         return f"Parallel({self.beats})"
@@ -165,6 +230,9 @@ class Cycle(Beat):
         self.beats[self.i].process(duration, start_time, fx)
         self.i = (self.i + 1) % len(self.beats)
 
+    def gen_lilypond(self, note_val: int) -> str:
+        return self.beats[self.i].gen_lilypond(note_val)
+
     def __repr__(self) -> str:
         return f"Cycle({self.beats})"
 
@@ -172,10 +240,14 @@ class Cycle(Beat):
 class Random(Beat):
     def __init__(self, beats: list[Beat]) -> None:
         self.beats = beats
+        self.beat_to_play = random.choice(self.beats)
 
     def process(self, duration: float, start_time: float, fx: list) -> None:
-        i = random.randint(0, len(self.beats) - 1)
-        self.beats[i].process(duration, start_time, fx)
+        self.beat_to_play.process(duration, start_time, fx)
+        self.beat_to_play = random.choice(self.beats)
+
+    def gen_lilypond(self, note_val: int) -> str:
+        return self.beat_to_play.gen_lilypond(note_val)
 
     def __repr__(self) -> str:
         return f"Random({self.beats})"
@@ -201,6 +273,9 @@ class Pattern:
             if self.countdown == 0:
                 silence(self.pat_name)
         self.i = (self.i + 1) % len(self.beats)
+
+    def gen_lilypond_staff(self) -> str:
+        return " ".join(beat.gen_lilypond(4) for beat in self.beats)
 
     def vibrato(self, rate: float = 6, depth: float = 0.02) -> Self:
         self.fx.append(("vibrato", rate, depth))
