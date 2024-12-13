@@ -109,15 +109,11 @@ class NoteName(Enum):
     SWELL = "swell"
 
 
-class FXName(Enum):
-    VIBRATO = "vibrato"
-
-
 class Beat:
     def __init__(self) -> None:
         pass
 
-    def process(self, duration: float, start_time: float, fx: list) -> None:
+    def process(self, duration: float, start_time: float) -> None:
         raise NotImplementedError
 
     def gen_lilypond(self, note_val: int) -> str:
@@ -131,10 +127,8 @@ class Note(Beat):
     def __init__(self, name: str, pitch: str) -> None:
         self.name = name
         self.pitch = pitch
-        self.fx = []
 
-    def process(self, _duration: float, start_time: float, fx: list) -> None:
-        self.fx = fx
+    def process(self, _duration: float, start_time: float) -> None:
         heapq.heappush(note_pq, (start_time, self))
 
     def gen_lilypond(self, note_val: int) -> str:
@@ -143,7 +137,7 @@ class Note(Beat):
         return f"{pitch_to_lilypond(self.pitch)}{note_val}"
 
     def play(self) -> None:
-        note_name, pitch, fx = self.name, self.pitch, self.fx
+        note_name, pitch = self.name, self.pitch
 
         # Ensure that the note name is valid.
         if note_name not in set([item.value for item in NoteName]):
@@ -152,14 +146,6 @@ class Note(Beat):
         # Create new group.
         group_id = next(group)
         client.send_message("/g_new", [group_id, 0, 0])
-
-        # Apply effects in reverse order.
-        # Effects are continually added to the head of the group.
-        for effect in fx[::-1]:
-            fx_name, *args = effect
-            match fx_name:
-                case FXName.VIBRATO:
-                    client.send_message("/s_new", ["vibrato", -1, 0, group_id] + args)
 
         # Calculate the frequency of the note.
         freq = pitch_to_freq(pitch)
@@ -180,10 +166,10 @@ class Sequence(Beat):
     def __init__(self, beats: list[Beat]) -> None:
         self.beats = beats
 
-    def process(self, duration: float, start_time: float, fx: list) -> None:
+    def process(self, duration: float, start_time: float) -> None:
         new_dur = duration / len(self.beats)
         for i, beat in enumerate(self.beats):
-            beat.process(new_dur, start_time + i * new_dur, fx)
+            beat.process(new_dur, start_time + i * new_dur)
 
     def gen_lilypond(self, note_val: int) -> str:
         def highest_power_of_2(n: int) -> int:
@@ -210,9 +196,9 @@ class Parallel(Beat):
     def __init__(self, beats: list[Beat]) -> None:
         self.beats = beats
 
-    def process(self, duration: float, start_time: float, fx: list) -> None:
+    def process(self, duration: float, start_time: float) -> None:
         for beat in self.beats:
-            beat.process(duration, start_time, fx)
+            beat.process(duration, start_time)
 
     def gen_lilypond(self, note_val: int) -> str:
         return (
@@ -232,8 +218,8 @@ class Cycle(Beat):
         self.beats = beats
         self.i = 0
 
-    def process(self, duration: float, start_time: float, fx: list) -> None:
-        self.beats[self.i].process(duration, start_time, fx)
+    def process(self, duration: float, start_time: float) -> None:
+        self.beats[self.i].process(duration, start_time)
         self.i = (self.i + 1) % len(self.beats)
 
     def gen_lilypond(self, note_val: int) -> str:
@@ -248,8 +234,8 @@ class Random(Beat):
         self.beats = beats
         self.beat_to_play = random.choice(self.beats)
 
-    def process(self, duration: float, start_time: float, fx: list) -> None:
-        self.beat_to_play.process(duration, start_time, fx)
+    def process(self, duration: float, start_time: float) -> None:
+        self.beat_to_play.process(duration, start_time)
         self.beat_to_play = random.choice(self.beats)
 
     def gen_lilypond(self, note_val: int) -> str:
@@ -266,13 +252,12 @@ class Pattern:
         self.beats = beats
         self.countdown = countdown
         self.i = 0  # Index of the current beat to play.
-        self.fx = []  # List of effects to apply.
 
         # Register the pattern.
         patterns[pat_name] = self
 
     def step(self, beat_start_time: float) -> None:
-        self.beats[self.i].process(60 / get_bpm(), beat_start_time, self.fx)
+        self.beats[self.i].process(60 / get_bpm(), beat_start_time)
         if self.i == len(self.beats) - 1:
             self.countdown -= 1
             if self.countdown == 0:
@@ -281,75 +266,3 @@ class Pattern:
 
     def gen_lilypond_staff(self) -> str:
         return " ".join(beat.gen_lilypond(4) for beat in self.beats)
-
-    def vibrato(self, rate: float = 6, depth: float = 0.02) -> Self:
-        self.fx.append(("vibrato", rate, depth))
-        return self
-
-    def slide_to(self, slide: float = 1, delay: float = 0) -> Self:
-        self.fx.append(("slide_to", slide, delay))
-        return self
-
-    def slide_from(self, slide: float = 1, delay: float = 0) -> Self:
-        self.fx.append(("slide_from", slide, delay))
-        return self
-
-    def pitch_bend(self, bend: float = 1, delay: float = 0) -> Self:
-        self.fx.append(("pitch_bend", bend, delay))
-        return self
-
-    def pitch_shift(self, shift: int = 0) -> Self:
-        self.fx.append(("pitch_shift", shift))
-        return self
-
-    def chop(self, num_parts: int = 4) -> Self:
-        self.fx.append(("chop", num_parts))
-        return self
-
-    def coarse(self, num_parts: int = 4) -> Self:
-        self.fx.append(("coarse", num_parts))
-        return self
-
-    def high_pass(self, hpf: float = 2000, hpr: float = 1) -> Self:
-        self.fx.append(("high_pass", hpf, hpr))
-        return self
-
-    def low_pass(self, lpf: float = 400, lpr: float = 1) -> Self:
-        self.fx.append(("low_pass", lpf, lpr))
-        return self
-
-    def bitcrush(self, bits: int = 4, crush: int = 8) -> Self:
-        self.fx.append(("bitcrush", bits, crush))
-        return self
-
-    def distortion(self, dist: float = 1) -> Self:
-        self.fx.append(("dist", dist))
-        return self
-
-    def wave_shape(self, shape: float = 1) -> Self:
-        self.fx.append(("wave_shape", shape))
-        return self
-
-    def overdrive(self, drive: float = 1) -> Self:
-        self.fx.append(("overdrive", drive))
-        return self
-
-    def reverb(self, room: float = 1, mix: float = 0.1) -> Self:
-        self.fx.append(("reverb", room, mix))
-        return self
-
-    def pan_spin(self, num_times: int = 4) -> Self:
-        self.fx.append(("pan_spin", num_times))
-        return self
-
-    def formant(self, formant: int = 4) -> Self:
-        self.fx.append(("formant", formant))
-        return self
-
-    def tremolo(self, num_times: int = 2) -> Self:
-        self.fx.append(("tremolo", num_times))
-        return self
-
-    def glissando(self, gliss: int = 0) -> Self:
-        self.fx.append(("glissando", gliss))
-        return self
