@@ -1,4 +1,4 @@
-# MiniClef
+# MiniClef: Sheet Music Generation for Live Coding in Python
 
 ## Albert Qi
 
